@@ -3,7 +3,7 @@ import math
 import pygame
 import random as rand
 import neural_network as nn
-
+import pickle
 
 #Initialise Pygame
 pygame.init()
@@ -80,12 +80,14 @@ replays_per_pause=10
 replay_length=30
 hunger=0 #If the hunger is larger than double the area of the board, then it dies.
 max_hunger=board_size[0]*board_size[1]*2
+font = pygame.font.SysFont(None, 24)
 while carryOn:
     # --- Main event loop
     for event in pygame.event.get():
         if event.type == pygame.QUIT: 
             carryOn = False 
         if event.type == pygame.KEYDOWN:
+            keys = pygame.key.get_pressed()
             if event.key == pygame.K_F11:
                 if fullscreen:
                     fullscreen=False
@@ -100,6 +102,14 @@ while carryOn:
                     square_size=(round(min((size2[0]/2)/board_size[0],(size2[1])/board_size[1])),round(min((size2[0]/2)/board_size[0],(size2[1])/board_size[1])))
             if event.key in moves:
                 move=moves[event.key]
+            if keys[pygame.K_LCTRL] and keys[pygame.K_s]: #Save the current brain
+                with open('current_brain.pickle', 'wb') as handle:
+                    pickle.dump(new_network, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                print("Successfully saved the brain!")
+            if keys[pygame.K_LCTRL] and keys[pygame.K_o]: #Open the saved brain
+                with open('current_brain.pickle', 'rb') as handle:
+                    new_network = pickle.load(handle)
+                print("Successfully loaded the brain!")
     
     state={}
     counter=0
@@ -185,13 +195,28 @@ while carryOn:
             final_states=[]
             for stater in states:
                 final_states.append(dict(zip(inputs,stater)))
+            states2=[]
+            rewards2=[]
+            states3=final_states.copy()
+            rewards3=rewards.copy()
+            while len(states3)>0: #Split up the training into 10 batches
+                states2.append([])
+                rewards2.append([])
+                for batches in range(min(200,len(states3))): #Run through either 200 times, or the ammount of states left to go.
+                    curr_num=rand.randint(0,len(states3)-1)
+                    states2[-1].append(states3[curr_num])
+                    rewards2[-1].append(rewards3[curr_num])
+                    states3.pop(curr_num)
+                    rewards3.pop(curr_num)
+
             print(f"The E_Greedy is now at {E_greedy}")
             print("Found the rewards for each timestep")
             _,error=Network.find_error(new_network,rewards,final_states)
             print("Found the initial error")
-            for step in range(10):
-                new_network=Network.backpropergation(new_network,rewards,final_states,strength_range_total,0.3)
-                print(f"Step {step} out of 10.")
+            for step in range(5):
+                for stater in range(len(states2)):
+                    new_network=Network.backpropergation(new_network,rewards2[stater],states2[stater],strength_range_total,0.1)
+                    print(f'Done mini batch {stater}/{len(states2)}')
             _,new_error=Network.find_error(new_network,rewards,final_states)
             print(f"Old error: {error}. New error: {new_error}")
             

@@ -23,7 +23,7 @@ screen = pygame.display.set_mode(size,pygame.RESIZABLE)
 #Set window icon and name
 icon = pygame.image.load('icon.png')
 pygame.display.set_icon(icon)
-pygame.display.set_caption("Deep Q Snakin") 
+pygame.display.set_caption("""Deep Q Snakin! Meet "An AI" (Amazingly named by @That Guy#6482) """) 
 
 #Set variable to check if the program is done or not.
 carryOn = True
@@ -36,18 +36,18 @@ board_size=(50,40) #Size is a 50 by 40 board.
 
 square_size=(round(min((size[0]/2)/board_size[0],(size[1])/board_size[1])),round(min((size[0]/2)/board_size[0],(size[1])/board_size[1])))
 
-body=[(25,15),(24,15),(23,15)]
+body=[(25,15),(24,15)]
 head=(25,15)
-apple=(rand.randint(0,board_size[0]),rand.randint(0,board_size[1]))
+apple=(rand.randint(0,board_size[0]-1),rand.randint(0,board_size[1]-1))
 while apple in body or apple == head:
-    apple=(rand.randint(0,board_size[0]),rand.randint(0,board_size[1]))
+    apple=(rand.randint(0,board_size[0]-1),rand.randint(0,board_size[1]-1))
 
 
 
 
 # The clock will be used to control how fast the screen updates
 clock = pygame.time.Clock()
-replay_buffer=[] #replays will have [state, action, outputs, reward, terminal?].
+replay_buffer=[] #replays will have [state, next state, action, outputs, reward, terminal?].
 
 # -------- Main Program Loop -----------
 moves={pygame.K_UP:(0,-1),pygame.K_DOWN:(0,1),pygame.K_LEFT:(-1,0),pygame.K_RIGHT:(1,0)}
@@ -57,7 +57,7 @@ vision_square_radius=10
 #(-1,0) is left, (1,0) is right, (0,1) is down, (0,-1) is up 
 valid_moves={(0,-1):[(0,-1),(1,0),(-1,0)], (0,1):[(0,1),(1,0),(-1,0)], (1,0):[(0,1),(0,-1),(1,0)], (-1,0):[(0,1),(0,-1),(-1,0)]}
 
-middle_n=[20,16]
+middle_n=[32,32,24]
 middle=[]
 total_num=0
 for neuron in middle_n:
@@ -66,15 +66,21 @@ for neuron in middle_n:
         neurons.append(f"m{total_num}")
         total_num+=1
     middle.append(neurons)
+E_Greedy=1000
+speed=10
+
+reward_decay_rate=0.99
 
 Network=nn.network((vision_square*vision_square)+4,4,middle)
+games=0
+curr_games=0
+apples=0
 
 strength_range_total=2
 strength_range=[-strength_range_total,strength_range_total]
-new_network=Network.randomise_network(strength_range)
+new_network=Network.randomise_network(strength_range,True)
 mover={"o0":(0,-1),"o1":(1,0),"o2":(0,1),"o3":(-1,0)}
 rev_mover={(0,-1):"o0",(1,0):"o1",(0,1):"o2",(-1,0):"o3"}
-E_greedy=1000 #The random move explorer thing
 actions=0
 replays_per_pause=10
 replay_length=30
@@ -100,6 +106,13 @@ while carryOn:
                     screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
                     size2=screen.get_size()
                     square_size=(round(min((size2[0]/2)/board_size[0],(size2[1])/board_size[1])),round(min((size2[0]/2)/board_size[0],(size2[1])/board_size[1])))
+            if event.key == pygame.K_SPACE:
+                if speed==10:
+                    speed=30
+                elif speed==30:
+                    speed=1000
+                else:
+                    speed=10
             if event.key in moves:
                 move=moves[event.key]
             if keys[pygame.K_LCTRL] and keys[pygame.K_s]: #Save the current brain
@@ -118,13 +131,13 @@ while carryOn:
             x2=math.ceil(vision_square/2)+x
             y2=math.ceil(vision_square/2)+y
             if (x2,y2) in body:#For the inputs: a wall/out of bounds is 1, the body is 0.75, the apple is 0.5, anything else is 0.
-                state[f"i{counter}"]=0.75
+                state[f"i{counter}"]=-1
             elif (x2,y2) == apple:
-                state[f"i{counter}"]=0.5
+                state[f"i{counter}"]=1
             else:
                 state[f"i{counter}"]=0
             if x2<0 or x2>=board_size[0] or y2<0 or y2>=board_size[1]:
-                state[f"i{counter}"]=1
+                state[f"i{counter}"]=-1
             
             counter+=1
     state[f"i{counter}"]=0
@@ -150,73 +163,89 @@ while carryOn:
         move=fullmove
     else:
         move=old_move
-    if rand.randint(0,1000)<=round(E_greedy): #If the random thing is smaller than elipson greedy value
-        valid=valid_moves[old_move]
-        randmove=rand.choice(valid)
-        move=randmove
-    E_greedy*=0.9999  
-    reward_decay_rate=0.99
-
+    if rand.randint(0,1000)<E_Greedy: #Make it a toggleable option.
+        move=rand.choice(valid_moves[old_move])
+    
+    E_Greedy*=0.9999
     #Get the output from the neural network
 
 
     body.insert(0,head)
     
     head=(head[0]+move[0],head[1]+move[1])
+
     if head==apple:
+        apples+=1
+        state2={}
+        apple=(rand.randint(0,board_size[0]-1),rand.randint(0,board_size[1]-1))
+        while apple in body or apple == head:
+            apple=(rand.randint(0,board_size[0]-1),rand.randint(0,board_size[1]-1))
+        counter=0
+        for x in range(vision_square):
+            for y in range(vision_square):
+                x2=math.ceil(vision_square/2)+x
+                y2=math.ceil(vision_square/2)+y
+                if (x2,y2) in body:#For the inputs: a wall/out of bounds is 1, the body is 0.75, the apple is 0.5, anything else is 0.
+                    state2[f"i{counter}"]=0.75
+                elif (x2,y2) == apple:
+                    state2[f"i{counter}"]=0.5
+                else:
+                    state2[f"i{counter}"]=0
+                if x2<0 or x2>=board_size[0] or y2<0 or y2>=board_size[1]:
+                    state2[f"i{counter}"]=1
+                
+                counter+=1
+        state2[f"i{counter}"]=0
+        state2[f"i{counter+1}"]=0
+        state2[f"i{counter+2}"]=0
+        state2[f"i{counter+3}"]=0
+        #{(0,-1):"o0", (1,0):"o1", (0,1):"o2", (-1,0):"o3"}
+        if move==(0,-1):
+            state2[f"i{counter}"]=1
+        elif move==(1,0):
+            state2[f"i{counter+1}"]=1
+        elif move==(0,1):
+            state2[f"i{counter+2}"]=1
+        elif move==(-1,0):
+            state2[f"i{counter+3}"]=1
         reward=0.5
         hunger=0
-        replay_buffer.append((state,rev_mover[move],fullmoves[1],reward,False))
-        apple=(rand.randint(0,board_size[0]),rand.randint(0,board_size[1]))
-        while apple in body or apple == head:
-            apple=(rand.randint(0,board_size[0]),rand.randint(0,board_size[1]))
+        replay_buffer.append((state,state2,rev_mover[move],fullmoves[1],reward,False))
+        
     elif head in body or head[0]<0 or head[0]>=board_size[0] or head[1]<0 or head[1]>=board_size[1] or hunger>=max_hunger:
+        games+=1
+        curr_games+=1
+        print(f"Done {games} games, and have gotten {apples} apples during those games.")
         reward=-1
-        replay_buffer.append((state,rev_mover[move],fullmoves[1],reward,True))
+        replay_buffer.append((state,{},rev_mover[move],fullmoves[1],reward,True))
         #reset the board
         hunger=0
-        body=[(25,15),(24,15),(23,15)]
+        body=[(25,15),(24,15)]
         head=(25,15)
-        apple=(rand.randint(0,board_size[0]),rand.randint(0,board_size[1]))
+        apple=(rand.randint(0,board_size[0]-1),rand.randint(0,board_size[1]-1))
         while apple in body or apple == head:
-            apple=(rand.randint(0,board_size[0]),rand.randint(0,board_size[1]))
-        body.pop()
+            apple=(rand.randint(0,board_size[0]-1),rand.randint(0,board_size[1]-1))
         move=(1,0)
-        if actions>1500:
+        if actions>500 and curr_games>5:
+            curr_games=0
             buffer_2=replay_buffer.copy()
             buffer_2.reverse() #Reverse it so we can go in reverse.
             print("About to find the rewards for each step")
             buffer_2_2=buffer_2.copy()
 
-            states,rewards=nn.find_step_rewards(buffer_2,reward_decay_rate)
+            states,rewards=Network.find_step_rewards(buffer_2,reward_decay_rate)
             #Make the states work with the inputs.
             inputs=list(buffer_2[0][0].keys())
             states=list(states)
             final_states=[]
             for stater in states:
                 final_states.append(dict(zip(inputs,stater)))
-            states2=[]
-            rewards2=[]
-            states3=final_states.copy()
-            rewards3=rewards.copy()
-            while len(states3)>0: #Split up the training into 10 batches
-                states2.append([])
-                rewards2.append([])
-                for batches in range(min(200,len(states3))): #Run through either 200 times, or the ammount of states left to go.
-                    curr_num=rand.randint(0,len(states3)-1)
-                    states2[-1].append(states3[curr_num])
-                    rewards2[-1].append(rewards3[curr_num])
-                    states3.pop(curr_num)
-                    rewards3.pop(curr_num)
 
-            print(f"The E_Greedy is now at {E_greedy}")
             print("Found the rewards for each timestep")
             _,error=Network.find_error(new_network,rewards,final_states)
             print("Found the initial error")
-            for step in range(5):
-                for stater in range(len(states2)):
-                    new_network=Network.backpropergation(new_network,rewards2[stater],states2[stater],strength_range_total,0.1)
-                    print(f'Done mini batch {stater}/{len(states2)}')
+            new_network=Network.backpropergation(new_network,rewards,final_states,strength_range_total,0.1)
+            print(f'Done')
             _,new_error=Network.find_error(new_network,rewards,final_states)
             print(f"Old error: {error}. New error: {new_error}")
             
@@ -225,9 +254,39 @@ while carryOn:
             actions=0
 
     else:
-        reward=0
-        replay_buffer.append((state,rev_mover[move],fullmoves[1],reward,False))
         body.pop()
+        state2={}
+        counter=0
+        for x in range(vision_square):
+            for y in range(vision_square):
+                x2=math.ceil(vision_square/2)+x
+                y2=math.ceil(vision_square/2)+y
+                if (x2,y2) in body:#For the inputs: a wall/out of bounds is 1, the body is 0.75, the apple is 0.5, anything else is 0.
+                    state2[f"i{counter}"]=0.75
+                elif (x2,y2) == apple:
+                    state2[f"i{counter}"]=0.5
+                else:
+                    state2[f"i{counter}"]=0
+                if x2<0 or x2>=board_size[0] or y2<0 or y2>=board_size[1]:
+                    state2[f"i{counter}"]=1
+                
+                counter+=1
+        state2[f"i{counter}"]=0
+        state2[f"i{counter+1}"]=0
+        state2[f"i{counter+2}"]=0
+        state2[f"i{counter+3}"]=0
+        #{(0,-1):"o0", (1,0):"o1", (0,1):"o2", (-1,0):"o3"}
+        if move==(0,-1):
+            state2[f"i{counter}"]=1
+        elif move==(1,0):
+            state2[f"i{counter+1}"]=1
+        elif move==(0,1):
+            state2[f"i{counter+2}"]=1
+        elif move==(-1,0):
+            state2[f"i{counter+3}"]=1
+        reward=-0.01
+        replay_buffer.append((state,state2,rev_mover[move],fullmoves[1],reward,False))
+        
         hunger+=1
     
 
@@ -259,7 +318,7 @@ while carryOn:
     pygame.display.update()
     pygame.display.flip()
      
-    clock.tick(1000)
+    clock.tick(speed)
  
 pygame.quit()
 

@@ -69,8 +69,10 @@ for neuron in middle_n:
 E_Greedy=1000
 speed=10
 
-reward_decay_rate=0.99
-
+reward_decay_rate=0.95
+do_E_Greedy=True
+if not do_E_Greedy:
+    E_Greedy=0
 Network=nn.network((vision_square*vision_square)+4,4,middle)
 games=0
 curr_games=0

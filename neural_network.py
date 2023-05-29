@@ -45,6 +45,16 @@ class network:
         rounded_sig=round(sig1,rounding)
         return rounded_sig
     
+    def RELU(self,num):
+        return max(num,num*0.001)
+
+    def dRELU(self,num):
+        if num<0:
+            return 0.001
+        else:
+            return 1
+
+    
     def rsigm(self,num,rounding):
         if num==1:
             return 23.7191  #100.0 Uncomment this if needed for the super long sig.
@@ -59,31 +69,39 @@ class network:
         rounded_deriv=round(deriv,rounding)
         return rounded_deriv
     
-    def randomise_network(self,strength_range):
+    def randomise_network(self,strength_range,random):
         new_network={} #initilise a new empty network
         for input_num in range(self.inputs): #Go through each input neuron
             for middle_num in self.middle[0]: #Go through the first layer of middle neurons
-                new_network[(f"i{input_num}",middle_num)]=round(rand.randint(strength_range[0]*1000,strength_range[1]*1000)/1000,5) #make the connection random within the specified range
-                
+                if random:
+                    new_network[(f"i{input_num}",middle_num)]=round(rand.randint(strength_range[0]*1000,strength_range[1]*1000)/1000,5) #make the connection random within the specified range
+                else:
+                    new_network[(f"i{input_num}",middle_num)]=0
+
         for middle_column in self.middle: #Go through each middle neuron column
             if middle_column!=self.middle[len(self.middle)-1]: #Check if the column is the last one, if not, continue
                 for curr_1 in middle_column: #Go through each neuron in the column
                     for curr_2 in self.middle[self.middle.index(middle_column)+1]: #Go through each neuron in the next column
-                        new_network[(curr_1,curr_2)]=round(rand.randint(strength_range[0]*1000,strength_range[1]*1000)/1000,5) #Randomise the connection in the specified range
-
+                        if random:
+                            new_network[(curr_1,curr_2)]=round(rand.randint(strength_range[0]*1000,strength_range[1]*1000)/1000,5) #Randomise the connection in the specified range
+                        else:
+                            new_network[(curr_1,curr_2)]=0
 
             else: #If it is the final column
                 for curr_1 in middle_column: #Go through each neuron in the column
                     for output in range(self.outputs): #Go through each neuron in the output
-                        new_network[(curr_1,f"o{output}")]=round(rand.randint(strength_range[0]*1000,strength_range[1]*1000)/1000,5) #Randomise the connection in the specified range
+                        if random:
+                            new_network[(curr_1,f"o{output}")]=round(rand.randint(strength_range[0]*1000,strength_range[1]*1000)/1000,5) #Randomise the connection in the specified range
+                        else:
+                            new_network[(curr_1,f"o{output}")]=0
         for column in self.middle:
             for neuron in column:
-                new_network[neuron]=round(rand.randint(strength_range[0]*1000,strength_range[1]*1000)/1000,5)
+                new_network[neuron]=0
         for neuron in range(self.outputs):
-            new_network[f"o{neuron}"]=round(rand.randint(strength_range[0]*1000,strength_range[1]*1000)/1000,5)
+            new_network[f"o{neuron}"]=0
         return new_network
     
-    def get_output(self,inputs=None,network=None):
+    def get_output(self,inputs=None,network=None,activation="sig"):
         """inputs have to be structured like {"i0":0,"i1":1,"i2":1,"i3":0}"""
         if inputs==None:inputs={"i0":0,"i1":1,"i2":1,"i3":0}
         if network==None:network={('i0', 'm0'): -4.074, ('i0', 'm1'): -0.439, ('i0', 'm2'): 4.312, ('i0', 'm3'): 0.082, ('i1', 'm0'): 3.124, ('i1', 'm1'): 4.936, ('i1', 'm2'): 1.297, ('i1', 'm3'): -1.838, ('i2', 'm0'): 3.708, ('i2', 'm1'): 4.164, ('i2', 'm2'): 0.708, ('i2', 'm3'): 2.334, ('i3', 'm0'): -0.86, ('i3', 'm1'): 0.818, ('i3', 'm2'): -3.855, ('i3', 'm3'): 0.45, ('m0', 'm4'): -2.849, ('m0', 'm5'): -1.893, ('m0', 'm6'): 2.064, ('m0', 'm7'): -1.112, ('m1', 'm4'): 2.522, ('m1', 'm5'): -2.14, ('m1', 'm6'): -0.473, ('m1', 'm7'): -3.217, ('m2', 'm4'): 1.115, ('m2', 'm5'): 0.591, ('m2', 'm6'): -4.429, ('m2', 'm7'): 0.657, ('m3', 'm4'): 2.685, ('m3', 'm5'): 2.451, ('m3', 'm6'): -1.794, ('m3', 'm7'): 0.255, ('m4', 'o0'): 4.636, ('m4', 'o1'): 0.326, ('m5', 'o0'): 2.004, ('m5', 'o1'): 0.763, ('m6', 'o0'): 2.772, ('m6', 'o1'): -1.172, ('m7', 'o0'): 2.548, ('m7', 'o1'): 3.98}
@@ -115,7 +133,10 @@ class network:
         while len(network_order)>0:
             curr_neuron=network_order.pop(0) 
             if curr_neuron[0]!="i": #Check if the neuron is an input neuron
-                network_status[curr_neuron]=self.sigm(network_status[curr_neuron]+network[curr_neuron],8) #Use the Sigmoid activation function to find the activated value of the neuron
+                if activation=="sig":
+                    network_status[curr_neuron]=self.sigm(network_status[curr_neuron]+network[curr_neuron],8) #Use the Sigmoid activation function to find the activated value of the neuron
+                else:
+                    network_status[curr_neuron]=self.RELU(network_status[curr_neuron]+network[curr_neuron])
             for conn_2 in connections[curr_neuron]: #Go through all the connections from the current neuron
                 pre_change=network_status[conn_2]
                 network_status[conn_2]=round(pre_change+network[(curr_neuron,conn_2)]*network_status[curr_neuron],8) 
@@ -125,7 +146,10 @@ class network:
         output_chosen={}
         multiple_outputs={}
         for output_num in range(self.outputs):
-            network_status[f"o{output_num}"]=self.sigm(network_status[f"o{output_num}"],8)
+            if activation=="sig":
+                network_status[f"o{output_num}"]=self.sigm(network_status[f"o{output_num}"],8)
+            else:
+                network_status[f"o{output_num}"]=self.RELU(network_status[f"o{output_num}"])
             multiple_outputs[f"o{output_num}"]=network_status[f"o{output_num}"]
             if network_status[f"o{output_num}"]>highest_output_num:
                 output_chosen={f"o{output_num}":network_status[f"o{output_num}"]}
@@ -170,7 +194,7 @@ class network:
 
 
 
-    def backpropergation(self,network,desired_outputs,states,strength_range_total,learning_rate):
+    def backpropergation(self,network,desired_outputs,states,strength_range_total,learning_rate,activation="sig"):
         """You need to make the desired_outputs and states variables lists of lists."""
         
 
@@ -206,17 +230,21 @@ class network:
         for state in range(len(states)):
             derivs={}
             print(f"{state}/{len(states)}")
-            _,output,status,unactiv_status=self.get_output(states[state],network) 
             error_thing=self.find_error(network,[desired_outputs[state]],[states[state]])
+            _,output,status,unactiv_status=self.get_output(states[state],network) 
             importance[state]=error_thing[1]
             total_error+=error_thing[1]
             for layer in layers:
                 for neuron in layer:
                     for con in connectable_neurons[neuron]:
+                        
                         conn=(con,neuron)
                         der_z_w=self.dz(2,status[neuron],network[conn]) #Find the deriv for the unactivated neuron with respect to the weight
                         der_z_b=self.dz(3,status[neuron],network[conn]) #Find the deriv for the unactivated neuron with respect to the bias
-                        der_s=self.dsigm(unactiv_status[neuron],100) #Find the deriv for the sigmoided neuron with respect to the unactivated neuron
+                        if activation=="sig":
+                            der_s=self.dsigm(unactiv_status[neuron],100) #Find the deriv for the sigmoided neuron with respect to the unactivated neuron
+                        else:
+                            der_s=self.dRELU(unactiv_status[neuron]) #Find the deriv for the RELUed neuron with respect to the unactivated neuron
                         if layer==outputs:
                             der_c=self.dcost(status[neuron],desired_outputs[state][neuron],100) #Find the deriv for the cost function with respect to the sigmoided neuron\
                             derivs[neuron]=der_z_b*der_s*der_c #Discourage the use of bias in the final layer
@@ -253,29 +281,39 @@ class network:
 
 
             new_network[conn]=max(min(new_network[conn]+gradient*learning_rate,strength_range_total),-strength_range_total)
-        network=new_network.copy()
 
         return new_network
     
-def find_step_rewards(replay_buffer,decay_factor):
-    rewards={}
-    done={True:1,False:0}
-    for replay in replay_buffer:
-        if tuple(replay[0].values()) in rewards:
-            reward=((replay[3] + (decay_factor*rewards[tuple(replay_buffer[replay_buffer.index(replay)-1][0].values())][replay[1]]))/2)*(1-done[replay[4]])
-            outputs=rewards[tuple(replay[0].values())]
-            outputs[replay[1]]=reward
-            rewards[tuple(replay[0].values())]=outputs
-        else:
-            if len(rewards)>0:
-                reward=((replay[3]+(decay_factor*rewards[tuple(replay_buffer[replay_buffer.index(replay)-1][0].values())][replay[1]]))/2)*(1-done[replay[4]]) #Average of the current reward, and the decayed value of the next state reward.
+    def find_step_rewards(self,replay_buffer,decay_factor):
+        rewards={} #New Q value = 
+        done={True:1,False:0}
+        prev_reward=0
+        for replay in replay_buffer:
+            if tuple(replay[0].values()) in rewards:
+                if replay[5]: #If that move was terminal
+                    reward=replay[4]
+                    prev_reward=reward
+                else:
+                    reward=(prev_reward*decay_factor)+replay[4]
+                    prev_reward=reward
+                    
+                    #reward=
+                    #reward=((replay[3] + (decay_factor*rewards[tuple(replay_buffer[replay_buffer.index(replay)-1][0].values())][replay[1]]))/2)*(1-done[replay[4]])
+                outputs=rewards[tuple(replay[0].values())]
+                outputs[replay[2]]=reward
+                rewards[tuple(replay[0].values())]=outputs
             else:
-                reward=replay[3]*(1-done[replay[4]])
-            outputs=replay[2]
-            outputs[replay[1]]=reward
-            rewards[tuple(replay[0].values())]=outputs
-    return list(rewards.keys()), list(rewards.values())
-    x=0
+                if replay[5]: #If that move was terminal
+                    reward=replay[4]
+                    prev_reward=reward
+                else:
+                    reward=(prev_reward*decay_factor)+replay[4]
+                    prev_reward=reward
+                outputs=replay[3]
+                outputs[replay[2]]=reward
+                rewards[tuple(replay[0].values())]=outputs
+        return list(rewards.keys()), list(rewards.values())
+        x=0
 
 
 print("Thank you for using my incredibly scuffed backpropergation neural network library. Check out my youtube channel: https://www.youtube.com/channel/UCdysJizyP9Ww4UxuAjMjSwA. ")

@@ -46,7 +46,7 @@ class network:
         return rounded_sig
     
     def RELU(self,num):
-        return max(num,num*0.001)
+        return max(num,0)
 
     def dRELU(self,num):
         if num<0:
@@ -146,10 +146,7 @@ class network:
         output_chosen={}
         multiple_outputs={}
         for output_num in range(self.outputs):
-            if activation=="sig":
-                network_status[f"o{output_num}"]=self.sigm(network_status[f"o{output_num}"],8)
-            else:
-                network_status[f"o{output_num}"]=self.RELU(network_status[f"o{output_num}"])
+            network_status[f"o{output_num}"]=self.sigm(network_status[f"o{output_num}"],8)
             multiple_outputs[f"o{output_num}"]=network_status[f"o{output_num}"]
             if network_status[f"o{output_num}"]>highest_output_num:
                 output_chosen={f"o{output_num}":network_status[f"o{output_num}"]}
@@ -159,11 +156,11 @@ class network:
         
         return output_chosen,multiple_outputs,network_status,network_status_unactivated
 
-    def find_error(self,network,desired_outputs,states):
+    def find_error(self,network,desired_outputs,states,activ="sig"):
         total_error=0
         errors={}
         for state in range(len(states)):
-            returned_output,full_outputs,status,unactivated_status=self.get_output(states[state],network)
+            returned_output,full_outputs,status,unactivated_status=self.get_output(states[state],network,activ)
 
             for x in full_outputs:
                 if x in errors.keys():
@@ -231,9 +228,10 @@ class network:
             derivs={}
             print(f"{state}/{len(states)}")
             error_thing=self.find_error(network,[desired_outputs[state]],[states[state]])
-            _,output,status,unactiv_status=self.get_output(states[state],network) 
+            _,output,status,unactiv_status=self.get_output(states[state],network,activation) 
             importance[state]=error_thing[1]
             total_error+=error_thing[1]
+            network_2=network.copy()
             for layer in layers:
                 for neuron in layer:
                     for con in connectable_neurons[neuron]:
@@ -249,6 +247,9 @@ class network:
                             der_c=self.dcost(status[neuron],desired_outputs[state][neuron],100) #Find the deriv for the cost function with respect to the sigmoided neuron\
                             derivs[neuron]=der_z_b*der_s*der_c #Discourage the use of bias in the final layer
                             derivs[conn]=der_z_w*der_s*der_c
+
+                            network_2[neuron]+=derivs[neuron]*learning_rate
+                            network_2[conn]+=derivs[conn]*learning_rate
                             #Start at output, find deriv of the weights. 
                             #Go back a layer, find deriv of those weights * the output weights derivs.
                         else:
@@ -261,6 +262,9 @@ class network:
                             total_deriv_b=deriv_b*summed_derivs
                             derivs[neuron]=total_deriv_b #Add them to the dict
                             derivs[conn]=total_deriv_w
+
+                            network_2[neuron]+=derivs[neuron]*learning_rate
+                            network_2[conn]+=derivs[conn]*learning_rate
                             
                         x=0
             for conn in network:
@@ -286,7 +290,6 @@ class network:
     
     def find_step_rewards(self,replay_buffer,decay_factor):
         rewards={} #New Q value = 
-        done={True:1,False:0}
         prev_reward=0
         for replay in replay_buffer:
             if tuple(replay[0].values()) in rewards:
@@ -300,7 +303,7 @@ class network:
                     #reward=
                     #reward=((replay[3] + (decay_factor*rewards[tuple(replay_buffer[replay_buffer.index(replay)-1][0].values())][replay[1]]))/2)*(1-done[replay[4]])
                 outputs=rewards[tuple(replay[0].values())]
-                outputs[replay[2]]=reward
+                outputs[replay[2]]=self.RELU(reward/2) #Make the reward thing go down
                 rewards[tuple(replay[0].values())]=outputs
             else:
                 if replay[5]: #If that move was terminal
@@ -314,9 +317,11 @@ class network:
                 rewards[tuple(replay[0].values())]=outputs
         return list(rewards.keys()), list(rewards.values())
         x=0
-
-
-print("Thank you for using my incredibly scuffed backpropergation neural network library. Check out my youtube channel: https://www.youtube.com/channel/UCdysJizyP9Ww4UxuAjMjSwA. ")
+school_version=True
+if school_version==False:
+    print("Thank you for using my incredibly scuffed backpropergation neural network library. Check out my youtube channel: https://www.youtube.com/channel/UCdysJizyP9Ww4UxuAjMjSwA. ")
+else:
+    print("Thank you for using my incredibly scuffed backpropergation neural network library.")
 if __name__=="__main__":
     print(time.time())
     print("started")

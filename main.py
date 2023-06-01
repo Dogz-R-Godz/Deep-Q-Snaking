@@ -79,6 +79,7 @@ for neuron in middle_n:
 
 #Start the E_Greedy var at 950 (95% chance of a random move)
 E_Greedy=950
+use_E_Greedy=True
 #Start the speed at 10
 speed=10
 
@@ -96,6 +97,7 @@ Network=nn.network(inputs,outputs,middle)
 games=0
 curr_games=0
 apples=0
+curr_apples=0
 
 #The strength range it can go to
 strength_range_total=1
@@ -109,8 +111,9 @@ mover={"o0":(0,-1),"o1":(1,0),"o2":(0,1),"o3":(-1,0)}
 rev_mover={(0,-1):"o0",(1,0):"o1",(0,1):"o2",(-1,0):"o3"}
 
 #Make a dict for the colours of the inputs
-input_colours={-1:WHITE,-0.5:GREY,0:BLACK,1:RED}
-
+input_colours={0.5:GREY,1:WHITE,0:BLACK,2:RED}
+#Set the performance mode to False
+performance_mode=False
 #Set the actions to 0
 actions=0
 screen.fill(DARK_GREY)
@@ -123,7 +126,9 @@ while carryOn:
     for event in pygame.event.get():
         if event.type == pygame.QUIT: #If the game is closed
             carryOn = False 
-
+            with open('current_brain.pickle', 'wb') as handle:
+                pickle.dump(new_network, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            print("Successfully saved the brain!")
         if event.type == pygame.VIDEORESIZE: #If the game is resized
             size=event.size
             square_size=(round(min((size[0]/2)/board_size[0],(size[1])/board_size[1])),round(min((size[0]/2)/board_size[0],(size[1])/board_size[1])))
@@ -179,6 +184,11 @@ while carryOn:
 
         if event.type == pygame.KEYDOWN: #If the user presses a key
             keys = pygame.key.get_pressed()
+
+            if event.key == pygame.K_e:
+                if use_E_Greedy:use_E_Greedy=False
+                else:use_E_Greedy=True
+
             if event.key == pygame.K_F11: 
                 if fullscreen: #If the game is already in fullscreen
                     fullscreen=False
@@ -231,8 +241,8 @@ while carryOn:
                         G=45
                         B=(208*min(new_network[conn],0))+47
                         if B<0:B=-B
-                        pos1=neuron_positions[conn[0]]
-                        pos2=neuron_positions[conn[1]]
+                        pos1=(neuron_positions[conn[0]][0]+1,neuron_positions[conn[0]][1])
+                        pos2=(neuron_positions[conn[1]][0]-1,neuron_positions[conn[1]][1])
                         colour=(R,G,B)
                         pygame.draw.line(screen,colour,pos1,pos2)
 
@@ -242,6 +252,11 @@ while carryOn:
 
                 pygame.display.update()
                 pygame.display.flip()
+
+            if event.key == pygame.K_p:
+                if performance_mode:performance_mode=False
+                else:performance_mode=True
+                
             if event.key == pygame.K_SPACE:
                 #Change the speed
                 if speed==10:
@@ -267,16 +282,16 @@ while carryOn:
     counter=0
     for x in range(vision_square): 
         for y in range(vision_square):
-            x2=math.ceil(vision_square/2)+x #Get the offset coord x
-            y2=math.ceil(vision_square/2)+y #Get the offset coord y
+            x2=head[0]-math.ceil(vision_square/2)+x #Get the offset coord x
+            y2=head[1]-math.ceil(vision_square/2)+y #Get the offset coord y
             if (x2,y2) in body:#For the inputs: a wall/out of bounds is 1, the body is 0.75, the apple is 0.5, anything else is 0.
-                state[f"i{counter}"]=-0.5
+                state[f"i{counter}"]=0.5
             elif (x2,y2) == apple:
-                state[f"i{counter}"]=1
+                state[f"i{counter}"]=2
             else:
                 state[f"i{counter}"]=0
             if x2<0 or x2>=board_size[0] or y2<0 or y2>=board_size[1]:
-                state[f"i{counter}"]=-1
+                state[f"i{counter}"]=1
             
             counter+=1
     state[f"i{counter}"]=0
@@ -305,8 +320,9 @@ while carryOn:
         move=fullmove
     else:
         move=old_move
-    if rand.randint(0,1000)<E_Greedy: #Make it a toggleable option.
-        move=rand.choice(valid_moves[old_move])
+    if use_E_Greedy:
+        if rand.randint(0,1000)<E_Greedy: #Make it a toggleable option.
+            move=rand.choice(valid_moves[old_move])
         
     
     E_Greedy*=0.9999
@@ -319,6 +335,7 @@ while carryOn:
 
     if head==apple:
         apples+=1
+        curr_apples+=1
         state2={}
         apple=(rand.randint(0,board_size[0]-1),rand.randint(0,board_size[1]-1))
         while apple in body or apple == head:
@@ -358,7 +375,7 @@ while carryOn:
     elif head in body or head[0]<0 or head[0]>=board_size[0] or head[1]<0 or head[1]>=board_size[1] or hunger>=max_hunger:
         games+=1
         curr_games+=1
-        print(f"Done {games} games, and have gotten {apples} apples during those games.")
+        print(f"Done {games} games, and have gotten {apples} apples during those games. We have done {actions} actions/2500 so far")
         reward=-1
         replay_buffer.append((state,{},rev_mover[move],fullmoves[1],reward,True))
         #reset the board
@@ -369,12 +386,12 @@ while carryOn:
         while apple in body or apple == head:
             apple=(rand.randint(0,board_size[0]-1),rand.randint(0,board_size[1]-1))
         move=(1,0)
-        if actions>500 and curr_games>=3:
+        if actions>2500:
+            curr_apples=0
             curr_games=0
             buffer_2=replay_buffer.copy()
             buffer_2.reverse() #Reverse it so we can go in reverse.
-            print("About to find the rewards for each step")
-            buffer_2_2=buffer_2.copy()
+            print("About to find the rewards for each step")\
 
             states,rewards=Network.find_step_rewards(buffer_2,reward_decay_rate)
             #Make the states work with the inputs.
@@ -383,14 +400,15 @@ while carryOn:
             final_states=[]
             for stater in states:
                 final_states.append(dict(zip(inputs2,stater)))
+            states2,rewards2=Network.get_backprop_states(final_states,rewards,buffer_2,100)
 
             print("Found the rewards for each timestep")
             print("Finding the initial error")
-            _,error=Network.find_error(new_network,rewards,final_states,"RELU")
+            _,error=Network.find_error(new_network,rewards2,states2,"RELU")
             print("Found the initial error")
-            new_network=Network.backpropergation(new_network,rewards,final_states,strength_range_total,0.1,"RELU")
+            new_network=Network.backpropergation(new_network,rewards2,states2,strength_range_total,0.1,"RELU")
             print(f'Done')
-            _,new_error=Network.find_error(new_network,rewards,final_states,"RELU")
+            _,new_error=Network.find_error(new_network,rewards2,states2,"RELU")
             print(f"Old error: {error}. New error: {new_error}")
             print(f"The Elipson Greedy is {E_Greedy}")
             screen.fill(DARK_GREY)
@@ -431,8 +449,8 @@ while carryOn:
                     G=45
                     B=(208*min(new_network[conn],0))+47
                     if B<0:B=-B
-                    pos1=neuron_positions[conn[0]]
-                    pos2=neuron_positions[conn[1]]
+                    pos1=(neuron_positions[conn[0]][0]+1,neuron_positions[conn[0]][1])
+                    pos2=(neuron_positions[conn[1]][0]-1,neuron_positions[conn[1]][1])
                     colour=(R,G,B)
                     pygame.draw.line(screen,colour,pos1,pos2)
 
@@ -481,9 +499,49 @@ while carryOn:
         replay_buffer.append((state,state2,rev_mover[move],fullmoves[1],reward,False))
         
         hunger+=1
+    if not performance_mode:
+        #Draw the network
+        counter2=0
+        status=fullmoves[2]
+        neuron_positions={}
+        network_layer_spacing=((size[0]-100)/2)/(len(layers))
+        for layer in range(len(layers)):
+            spacing=(size[1]-50)/(layers[layer]-1)
+            if layer==0:
+                for inputer in range(layers[layer]):
+                    curr_pos=(50+(size[0]/2)+(network_layer_spacing*layer),(spacing*inputer)+25)
+                    neuron_positions[f"i{inputer}"]=curr_pos
+                    pygame.draw.circle(screen,input_colours[state[f"i{inputer}"]],curr_pos,(size[1]-50)/inputs)
+
+            elif layer==len(layers)-1:
+                for output in range(layers[layer]):
+                    curr_pos=(50+(size[0]/2)+(network_layer_spacing*layer),(spacing*output)+25)
+                    neuron_positions[f"o{output}"]=curr_pos
+                    activ=status[f"o{output}"]
+                    R=(255*min(activ,1)) #43
+                    G=(255*min(activ,1)) #45
+                    B=(255*min(activ,1)) #47
+                    pygame.draw.circle(screen,(R,G,B),curr_pos,(size[1]-50)/inputs)
+            else:
+                for middle in range(layers[layer]):
+                    curr_pos=(50+(size[0]/2)+(network_layer_spacing*layer),(spacing*middle)+25)
+                    neuron_positions[f"m{counter2}"]=curr_pos
+                    R=(255*min(status[f"m{counter2}"],1))
+                    G=(255*min(status[f"m{counter2}"],1))
+                    B=(255*min(status[f"m{counter2}"],1))
+                    counter2+=1
+                    pygame.draw.circle(screen,(R,G,B),curr_pos,(size[1]-50)/inputs)
+        #for conn in new_network:
+            #if type(conn)==tuple:
+                #R=(212*max(new_network[conn],0))+43
+                #G=45
+                #B=(208*min(new_network[conn],0))+47
+                #if B<0:B=-B
+                #pos1=(neuron_positions[conn[0]][0]+1,neuron_positions[conn[0]][1])
+                #pos2=(neuron_positions[conn[1]][0]-1,neuron_positions[conn[1]][1])
+                #colour=(R,G,B)
+                #pygame.draw.line(screen,colour,pos1,pos2)
     
-
-
 
 
     pygame.draw.rect(screen,DARK_GREY,[0,0,size[0]/2,size[1]])

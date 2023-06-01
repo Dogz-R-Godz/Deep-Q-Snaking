@@ -41,7 +41,11 @@ class network:
         self.middle=middle
     def sigm(self,num,rounding=8):
         """Sigmoid is the activation function that we will use for this neural network. Sigmoid is an non-linear equation that can turn any input number into a number from 0-1."""
-        sig1=1/(1+maths.e**-num) #sig=1/(1+maths.e**(-num*0.3673682)) Uncomment this if needed for the super long sigmoid #The sigmoid equation. It uses e, Eulers number (2.718281828459045). The *0.2 is so that the equation ends quite a bit later.
+        try:
+            sig1=1/(1+maths.e**-num) #sig=1/(1+maths.e**(-num*0.3673682)) Uncomment this if needed for the super long sigmoid #The sigmoid equation. It uses e, Eulers number (2.718281828459045). The *0.2 is so that the equation ends quite a bit later.
+        except:
+            if num>0:sig1=1
+            else:sig1=0
         rounded_sig=round(sig1,rounding)
         return rounded_sig
     
@@ -228,14 +232,14 @@ class network:
             derivs={}
             print(f"{state}/{len(states)}")
             error_thing=self.find_error(network,[desired_outputs[state]],[states[state]])
-            _,output,status,unactiv_status=self.get_output(states[state],network,activation) 
+            
             importance[state]=error_thing[1]
             total_error+=error_thing[1]
             network_2=network.copy()
             for layer in layers:
+                _,output,status,unactiv_status=self.get_output(states[state],network_2,activation) 
                 for neuron in layer:
                     for con in connectable_neurons[neuron]:
-                        
                         conn=(con,neuron)
                         der_z_w=self.dz(2,status[neuron],network[conn]) #Find the deriv for the unactivated neuron with respect to the weight
                         der_z_b=self.dz(3,status[neuron],network[conn]) #Find the deriv for the unactivated neuron with respect to the bias
@@ -316,7 +320,37 @@ class network:
                 outputs[replay[2]]=reward
                 rewards[tuple(replay[0].values())]=outputs
         return list(rewards.keys()), list(rewards.values())
+    
+    def get_backprop_states(self,states,wanted_outputs,replay_buffer,total_final_states):
         x=0
+        print("Length of states:")
+        final_states=[]
+        final_rewards=[]
+        total_posative_reward_states=0
+        linked_stuff=0
+        for replay in replay_buffer:
+            curr_reward=replay[4]
+            if curr_reward>0:
+                total_posative_reward_states+=1
+                linked_stuff+=10
+                final_states.append(replay[0])
+                final_rewards.append(wanted_outputs[states.index(replay[0])])
+                
+            else:
+                if linked_stuff>0:
+                    linked_stuff-=1
+                    #total_posative_reward_states+=1
+                    final_rewards.append(wanted_outputs[states.index(replay[0])])
+        for _ in range(total_final_states-total_posative_reward_states):
+            curr_num=rand.randint(0,len(states)-1)
+            final_states.append(states[curr_num])
+            final_rewards.append(wanted_outputs[curr_num])
+        return final_states, final_rewards
+
+
+
+
+
 school_version=True
 if school_version==False:
     print("Thank you for using my incredibly scuffed backpropergation neural network library. Check out my youtube channel: https://www.youtube.com/channel/UCdysJizyP9Ww4UxuAjMjSwA. ")

@@ -39,6 +39,8 @@ class network:
         self.inputs=inputs
         self.outputs=outputs
         self.middle=middle
+    
+    #Sigmoid activation function
     def sigm(self,num,rounding=8):
         """Sigmoid is the activation function that we will use for this neural network. Sigmoid is an non-linear equation that can turn any input number into a number from 0-1."""
         try:
@@ -48,17 +50,7 @@ class network:
             else:sig1=0
         rounded_sig=round(sig1,rounding)
         return rounded_sig
-    
-    def RELU(self,num):
-        return max(num,0)
-
-    def dRELU(self,num):
-        if num<0:
-            return 0.001
-        else:
-            return 1
-
-    
+    #Derivative of the sigmoid activation function
     def rsigm(self,num,rounding):
         if num==1:
             return 23.7191  #100.0 Uncomment this if needed for the super long sig.
@@ -67,6 +59,24 @@ class network:
         sig = maths.log(num/(1-num))#/0.3673682 Uncomment this if needed for the super long sig. #The reverse of the sigmoid equation.
         rounded_sig=round(sig,rounding)
         return rounded_sig
+    
+    #RELU activation function
+    def RELU(self,num):
+        return max(num,0)
+    #Derivative of the RELU activation function
+    def dRELU(self,num):
+        if num<0:
+            return 0.001
+        else:
+            return 1
+
+    #Tanh activation function
+    def tanh(self,num):
+        return maths.tanh(num)
+    #Derivative of the tanh function
+    def dtanh(self,num):
+        return 1-(num**2)
+    
     
     def dsigm(self,num,rounding=16):
         deriv=self.sigm(num,16) * (1-self.sigm(num,16))
@@ -105,7 +115,7 @@ class network:
             new_network[f"o{neuron}"]=0
         return new_network
     
-    def get_output(self,inputs=None,network=None,activation="sig"):
+    def get_output(self,inputs=None,network=None,activation="sig",rounding=8):
         """inputs have to be structured like {"i0":0,"i1":1,"i2":1,"i3":0}"""
         if inputs==None:inputs={"i0":0,"i1":1,"i2":1,"i3":0}
         if network==None:network={('i0', 'm0'): -4.074, ('i0', 'm1'): -0.439, ('i0', 'm2'): 4.312, ('i0', 'm3'): 0.082, ('i1', 'm0'): 3.124, ('i1', 'm1'): 4.936, ('i1', 'm2'): 1.297, ('i1', 'm3'): -1.838, ('i2', 'm0'): 3.708, ('i2', 'm1'): 4.164, ('i2', 'm2'): 0.708, ('i2', 'm3'): 2.334, ('i3', 'm0'): -0.86, ('i3', 'm1'): 0.818, ('i3', 'm2'): -3.855, ('i3', 'm3'): 0.45, ('m0', 'm4'): -2.849, ('m0', 'm5'): -1.893, ('m0', 'm6'): 2.064, ('m0', 'm7'): -1.112, ('m1', 'm4'): 2.522, ('m1', 'm5'): -2.14, ('m1', 'm6'): -0.473, ('m1', 'm7'): -3.217, ('m2', 'm4'): 1.115, ('m2', 'm5'): 0.591, ('m2', 'm6'): -4.429, ('m2', 'm7'): 0.657, ('m3', 'm4'): 2.685, ('m3', 'm5'): 2.451, ('m3', 'm6'): -1.794, ('m3', 'm7'): 0.255, ('m4', 'o0'): 4.636, ('m4', 'o1'): 0.326, ('m5', 'o0'): 2.004, ('m5', 'o1'): 0.763, ('m6', 'o0'): 2.772, ('m6', 'o1'): -1.172, ('m7', 'o0'): 2.548, ('m7', 'o1'): 3.98}
@@ -138,19 +148,21 @@ class network:
             curr_neuron=network_order.pop(0) 
             if curr_neuron[0]!="i": #Check if the neuron is an input neuron
                 if activation=="sig":
-                    network_status[curr_neuron]=self.sigm(network_status[curr_neuron]+network[curr_neuron],8) #Use the Sigmoid activation function to find the activated value of the neuron
+                    network_status[curr_neuron]=self.sigm(network_status[curr_neuron]+network[curr_neuron],rounding) #Use the Sigmoid activation function to find the activated value of the neuron
+                elif activation=="tanh":
+                    network_status[curr_neuron]=self.tanh(network_status[curr_neuron]+network[curr_neuron])
                 else:
                     network_status[curr_neuron]=self.RELU(network_status[curr_neuron]+network[curr_neuron])
             for conn_2 in connections[curr_neuron]: #Go through all the connections from the current neuron
                 pre_change=network_status[conn_2]
-                network_status[conn_2]=round(pre_change+network[(curr_neuron,conn_2)]*network_status[curr_neuron],8) 
-                network_status_unactivated[conn_2]=round(pre_change+network[(curr_neuron,conn_2)]*network_status[curr_neuron],8)
+                network_status[conn_2]=round(pre_change+network[(curr_neuron,conn_2)]*network_status[curr_neuron],rounding) 
+                network_status_unactivated[conn_2]=round(pre_change+network[(curr_neuron,conn_2)]*network_status[curr_neuron],rounding)
         #Find the most activated output
         highest_output_num=-1
         output_chosen={}
         multiple_outputs={}
         for output_num in range(self.outputs):
-            network_status[f"o{output_num}"]=self.sigm(network_status[f"o{output_num}"],8)
+            network_status[f"o{output_num}"]=self.sigm(network_status[f"o{output_num}"],rounding)
             multiple_outputs[f"o{output_num}"]=network_status[f"o{output_num}"]
             if network_status[f"o{output_num}"]>highest_output_num:
                 output_chosen={f"o{output_num}":network_status[f"o{output_num}"]}
@@ -229,8 +241,9 @@ class network:
         state_wishes={}
         importance={}
         for state in range(len(states)):
+            print(f"Done state {state} out of {len(states)-1}")
             derivs={}
-            print(f"{state}/{len(states)}")
+            #print(f"{state}/{len(states)}")
             error_thing=self.find_error(network,[desired_outputs[state]],[states[state]])
             
             importance[state]=error_thing[1]
@@ -245,6 +258,8 @@ class network:
                         der_z_b=self.dz(3,status[neuron],network[conn]) #Find the deriv for the unactivated neuron with respect to the bias
                         if activation=="sig":
                             der_s=self.dsigm(unactiv_status[neuron],100) #Find the deriv for the sigmoided neuron with respect to the unactivated neuron
+                        elif activation=="tanh":
+                            der_s=self.dtanh(unactiv_status[neuron])
                         else:
                             der_s=self.dRELU(unactiv_status[neuron]) #Find the deriv for the RELUed neuron with respect to the unactivated neuron
                         if layer==outputs:
@@ -285,14 +300,14 @@ class network:
             
 
             gradient=(total_wishes/(len(states)))
-            
+            #print(gradient)
 
 
             new_network[conn]=max(min(new_network[conn]+gradient*learning_rate,strength_range_total),-strength_range_total)
 
         return new_network
     
-    def find_step_rewards(self,replay_buffer,decay_factor):
+    def find_step_rewards(self,replay_buffer,decay_factor,activation="sig"):
         rewards={} #New Q value = 
         prev_reward=0
         for replay in replay_buffer:
@@ -307,7 +322,12 @@ class network:
                     #reward=
                     #reward=((replay[3] + (decay_factor*rewards[tuple(replay_buffer[replay_buffer.index(replay)-1][0].values())][replay[1]]))/2)*(1-done[replay[4]])
                 outputs=rewards[tuple(replay[0].values())]
-                outputs[replay[2]]=self.RELU(reward/2) #Make the reward thing go down
+                if activation=="sig":
+                    outputs[replay[2]]=self.sigm(reward/2) #Make the reward thing go down
+                elif activation=="tanh":
+                    outputs[replay[2]]=self.tanh(reward/2) #Make the reward thing go down
+                else:
+                    outputs[replay[2]]=self.RELU(reward/2) #Make the reward thing go down
                 rewards[tuple(replay[0].values())]=outputs
             else:
                 if replay[5]: #If that move was terminal
@@ -316,6 +336,9 @@ class network:
                 else:
                     reward=(prev_reward*decay_factor)+replay[4]
                     prev_reward=reward
+                outputs={}
+                for x in replay[3]:
+                    outputs[x]=max(replay[x]*1.25,1)
                 outputs=replay[3]
                 outputs[replay[2]]=reward
                 rewards[tuple(replay[0].values())]=outputs
@@ -323,15 +346,13 @@ class network:
     
     def get_backprop_states(self,states,wanted_outputs,replay_buffer,total_final_states):
         x=0
-        print("Length of states:")
+        print(f"Length of states: {total_final_states}")
         final_states=[]
         final_rewards=[]
-        total_posative_reward_states=0
         linked_stuff=0
         for replay in replay_buffer:
             curr_reward=replay[4]
-            if curr_reward>0:
-                total_posative_reward_states+=1
+            if curr_reward>0.01:
                 linked_stuff+=10
                 final_states.append(replay[0])
                 final_rewards.append(wanted_outputs[states.index(replay[0])])
@@ -339,12 +360,16 @@ class network:
             else:
                 if linked_stuff>0:
                     linked_stuff-=1
-                    #total_posative_reward_states+=1
+                    final_states.append(replay[0])
                     final_rewards.append(wanted_outputs[states.index(replay[0])])
-        for _ in range(total_final_states-total_posative_reward_states):
+        reward_states=len(final_rewards)
+        print(f"Length of reward states: {len(final_rewards)}. We need to create {total_final_states-reward_states} more states")
+        
+        for _ in range(total_final_states-reward_states):
             curr_num=rand.randint(0,len(states)-1)
             final_states.append(states[curr_num])
             final_rewards.append(wanted_outputs[curr_num])
+        print(f"Finished creating {len(final_rewards)} total states")
         return final_states, final_rewards
 
 

@@ -78,7 +78,7 @@ for neuron in middle_n:
     middle.append(neurons)
 
 #Start the E_Greedy var at 950 (95% chance of a random move)
-E_Greedy=950
+E_Greedy=750
 use_E_Greedy=True
 #Start the speed at 10
 speed=10
@@ -90,7 +90,7 @@ reward_decay_rate=0.95
 do_E_Greedy=True
 if not do_E_Greedy:
     E_Greedy=0
-
+prevous_reward=0
 #Initialise the network
 Network=nn.network(inputs,outputs,middle)
 #Set the games, current games, and apples variables to 0
@@ -99,6 +99,9 @@ curr_games=0
 apples=0
 curr_apples=0
 
+#Set the activation function
+activation="tanh"
+total_current_best_reward=-100000
 #The strength range it can go to
 strength_range_total=1
 strength_range=[-strength_range_total,strength_range_total]
@@ -159,9 +162,9 @@ while carryOn:
                     for middle in range(layers[layer]):
                         curr_pos=(50+(size[0]/2)+(network_layer_spacing*layer),(spacing*middle)+25)
                         neuron_positions[f"m{counter2}"]=curr_pos
-                        R=(255*min(status[f"m{counter2}"],1))
-                        G=(255*min(status[f"m{counter2}"],1))
-                        B=(255*min(status[f"m{counter2}"],1))
+                        R=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
+                        G=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
+                        B=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
                         counter2+=1
                         pygame.draw.circle(screen,(R,G,B),curr_pos,(size[1]-50)/inputs)
             for conn in new_network:
@@ -230,9 +233,9 @@ while carryOn:
                         for middle in range(layers[layer]):
                             curr_pos=(50+(size[0]/2)+(network_layer_spacing*layer),(spacing*middle)+25)
                             neuron_positions[f"m{counter2}"]=curr_pos
-                            R=(255*min(status[f"m{counter2}"],1))
-                            G=(255*min(status[f"m{counter2}"],1))
-                            B=(255*min(status[f"m{counter2}"],1))
+                            R=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
+                            G=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
+                            B=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
                             counter2+=1
                             pygame.draw.circle(screen,(R,G,B),curr_pos,(size[1]-50)/inputs)
                 for conn in new_network:
@@ -312,7 +315,7 @@ while carryOn:
     #Increase the actions taken by 1
     actions+=1
     old_move=move
-    fullmoves=Network.get_output(state,new_network,"RELU")
+    fullmoves=Network.get_output(state,new_network,activation)
     #Find the move the AI wants to make
     fullmove=list(fullmoves[0].keys())
     fullmove=mover[fullmove[0]]
@@ -325,7 +328,7 @@ while carryOn:
             move=rand.choice(valid_moves[old_move])
         
     
-    E_Greedy*=0.9999
+    E_Greedy*=0.9999999
     #Get the output from the neural network
 
 
@@ -369,6 +372,7 @@ while carryOn:
         elif move==(-1,0):
             state2[f"i{counter+3}"]=1
         reward=0.5
+        total_current_best_reward+=0.5
         hunger=0
         replay_buffer.append((state,state2,rev_mover[move],fullmoves[1],reward,False))
         
@@ -376,7 +380,8 @@ while carryOn:
         games+=1
         curr_games+=1
         print(f"Done {games} games, and have gotten {apples} apples during those games. We have done {actions} actions/2500 so far")
-        reward=-1
+        reward=-0.5
+        total_current_best_reward-=0.5
         replay_buffer.append((state,{},rev_mover[move],fullmoves[1],reward,True))
         #reset the board
         hunger=0
@@ -393,7 +398,7 @@ while carryOn:
             buffer_2.reverse() #Reverse it so we can go in reverse.
             print("About to find the rewards for each step")\
 
-            states,rewards=Network.find_step_rewards(buffer_2,reward_decay_rate)
+            states,rewards=Network.find_step_rewards(buffer_2,reward_decay_rate,activation)
             #Make the states work with the inputs.
             inputs2=list(buffer_2[0][0].keys())
             states=list(states)
@@ -404,11 +409,11 @@ while carryOn:
 
             print("Found the rewards for each timestep")
             print("Finding the initial error")
-            _,error=Network.find_error(new_network,rewards2,states2,"RELU")
+            _,error=Network.find_error(new_network,rewards2,states2,activation)
             print("Found the initial error")
-            new_network=Network.backpropergation(new_network,rewards2,states2,strength_range_total,0.1,"RELU")
+            new_network=Network.backpropergation(new_network,rewards2,states2,strength_range_total,0.01,activation)
             print(f'Done')
-            _,new_error=Network.find_error(new_network,rewards2,states2,"RELU")
+            _,new_error=Network.find_error(new_network,rewards2,states2,activation)
             print(f"Old error: {error}. New error: {new_error}")
             print(f"The Elipson Greedy is {E_Greedy}")
             screen.fill(DARK_GREY)
@@ -438,9 +443,9 @@ while carryOn:
                     for middle in range(layers[layer]):
                         curr_pos=(50+(size[0]/2)+(network_layer_spacing*layer),(spacing*middle)+25)
                         neuron_positions[f"m{counter2}"]=curr_pos
-                        R=(255*min(status[f"m{counter2}"],1))
-                        G=(255*min(status[f"m{counter2}"],1))
-                        B=(255*min(status[f"m{counter2}"],1))
+                        R=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
+                        G=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
+                        B=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
                         counter2+=1
                         pygame.draw.circle(screen,(R,G,B),curr_pos,(size[1]-50)/inputs)
             for conn in new_network:
@@ -468,6 +473,8 @@ while carryOn:
         body.pop()
         state2={}
         counter=0
+        is_apple=False
+        apple_pos=()
         for x in range(vision_square):
             for y in range(vision_square):
                 x2=math.ceil(vision_square/2)+x
@@ -476,6 +483,8 @@ while carryOn:
                     state2[f"i{counter}"]=0.75
                 elif (x2,y2) == apple:
                     state2[f"i{counter}"]=0.5
+                    is_apple=True
+                    apple_pos=(x2,y2)
                 else:
                     state2[f"i{counter}"]=0
                 if x2<0 or x2>=board_size[0] or y2<0 or y2>=board_size[1]:
@@ -495,7 +504,13 @@ while carryOn:
             state2[f"i{counter+2}"]=1
         elif move==(-1,0):
             state2[f"i{counter+3}"]=1
-        reward=-0.01
+        
+        if is_apple:
+            reward=0.01-(math.sqrt(apple_pos[0]+apple_pos[1])*(0.01/math.floor(vision_square/2)))-prevous_reward
+            prevous_reward=reward
+        else:
+            reward=0
+            prevous_reward=0
         replay_buffer.append((state,state2,rev_mover[move],fullmoves[1],reward,False))
         
         hunger+=1
@@ -526,9 +541,9 @@ while carryOn:
                 for middle in range(layers[layer]):
                     curr_pos=(50+(size[0]/2)+(network_layer_spacing*layer),(spacing*middle)+25)
                     neuron_positions[f"m{counter2}"]=curr_pos
-                    R=(255*min(status[f"m{counter2}"],1))
-                    G=(255*min(status[f"m{counter2}"],1))
-                    B=(255*min(status[f"m{counter2}"],1))
+                    R=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
+                    G=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
+                    B=math.floor(127.5*min(status[f"m{counter2}"],1)+127.5)
                     counter2+=1
                     pygame.draw.circle(screen,(R,G,B),curr_pos,(size[1]-50)/inputs)
         #for conn in new_network:
